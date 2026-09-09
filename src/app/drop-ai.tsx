@@ -5,14 +5,14 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } fr
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Composer, TypeaheadSheet } from '@/components/drop-ai/composer';
+import { Composer, OptionsSheet } from '@/components/drop-ai/composer';
 import { Header } from '@/components/drop-ai/header';
 import { HistoryView } from '@/components/drop-ai/history-view';
 import { AssistantText, ErrorTurn, Thinking, UserBubble, enterMessage } from '@/components/drop-ai/messages';
 import { OverflowMenu, Toast, VoiceSheet } from '@/components/drop-ai/overlays';
 import { BasketCard, OrderCards } from '@/components/drop-ai/payloads';
 import { FollowUps } from '@/components/drop-ai/primitives';
-import { StartView } from '@/components/drop-ai/start-view';
+import { ModeChips } from '@/components/drop-ai/mode-chips';
 import { StoreCarousel } from '@/components/drop-ai/store-carousel';
 import { Colors, Fonts, Gutter, Motion } from '@/constants/theme';
 import {
@@ -20,6 +20,7 @@ import {
   dealResults,
   greeting,
   pastOrders,
+  starterPrompts,
   querySuggestions,
   recipeAnswer,
   requestFails,
@@ -29,6 +30,7 @@ import {
   voice,
   type Intent,
   type Order,
+  type StarterPrompt,
 } from '@/data/drop-ai-mock';
 
 type Kind = 'user' | 'thinking' | 'error' | Intent;
@@ -49,6 +51,8 @@ export default function DropAIScreen() {
   const [draft, setDraft] = useState('');
   const [focused, setFocused] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [mode, setMode] = useState(starterPrompts[0].label);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [toast, setToast] = useState('');
   const [basketCount, setBasketCount] = useState(user.basketCount);
@@ -69,16 +73,21 @@ export default function DropAIScreen() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  const ask = useCallback((text: string, intent?: Intent) => {
+  const ask = useCallback((text: string, intent?: Intent, displayText?: string) => {
     const query = text.trim();
     if (!query) return;
 
-    const userTurn: Message = { id: nextId.current++, kind: 'user', text: query };
+    const userTurn: Message = {
+      id: nextId.current++,
+      kind: 'user',
+      text: displayText ?? query,
+    };
     const thinkingTurn: Message = { id: nextId.current++, kind: 'thinking' };
 
     setLastQuery(query);
     setDraft('');
     setFocused(false);
+    setSheetOpen(false);
     setHistory(false);
     setMessages((current) => [...current, userTurn, thinkingTurn]);
 
@@ -99,7 +108,25 @@ export default function DropAIScreen() {
     setHistory(false);
     setDraft('');
     setFocused(false);
+    setSheetOpen(false);
   }, []);
+
+  /* 'sheet' chips open the options list; 'intent' chips answer straight away. */
+  const onPickMode = useCallback(
+    (prompt: StarterPrompt) => {
+      if (prompt.mode === 'sheet') {
+        setMode(prompt.label);
+        setSheetOpen(true);
+        setFocused(false);
+        setDraft('');
+        setMenuOpen(false);
+        setVoiceOpen(false);
+        return;
+      }
+      ask(prompt.label, prompt.intent);
+    },
+    [ask]
+  );
 
   const addToBasket = useCallback(
     (label: string) => {
@@ -127,13 +154,19 @@ export default function DropAIScreen() {
     [flash]
   );
 
-  const matches = useMemo(() => {
-    const query = draft.trim().toLowerCase();
-    if (!query) return [];
-    return querySuggestions.filter((term) => term.includes(query)).slice(0, 6);
-  }, [draft]);
+  const typing = focused && draft.trim().length > 0;
 
-  const typeaheadOpen = !history && focused && matches.length > 0 && !voiceOpen;
+  const matches = useMemo(() => {
+    if (!typing) return querySuggestions;
+    const query = draft.trim().toLowerCase();
+    return querySuggestions.filter((term) => term.includes(query)).slice(0, 6);
+  }, [draft, typing]);
+
+  const optionsOpen = !history && !voiceOpen && matches.length > 0 && (sheetOpen || typing);
+  const sheetPrefix = sheetOpen ? mode : starterPrompts[0].label;
+  const sheetIntent: Intent = sheetOpen
+    ? (starterPrompts.find((p) => p.label === mode)?.intent ?? 'stores')
+    : 'stores';
 
   const renderPayload = (message: Message) => {
     switch (message.kind) {
@@ -210,22 +243,28 @@ export default function DropAIScreen() {
             <>
               <Text style={styles.started}>Chat started · {startedAt}</Text>
               <Text style={styles.greeting}>{greeting(user.firstName)}</Text>
-              {messages.length === 0 ? (
-                <StartView onPrompt={ask} onResume={ask} />
-              ) : (
-                messages.map((message) => (
-                  <Animated.View key={message.id} entering={enterMessage}>
-                    {renderPayload(message)}
-                  </Animated.View>
-                ))
-              )}
+              <ModeChips dimmed={messages.length > 0} onPick={onPickMode} />
+              {messages.map((message) => (
+                <Animated.View key={message.id} entering={enterMessage}>
+                  {renderPayload(message)}
+                </Animated.View>
+              ))}
             </>
           )}
         </ScrollView>
 
-        {typeaheadOpen ? (
-          <View style={styles.typeahead}>
-            <TypeaheadSheet matches={matches} onSelect={(term) => ask(term)} />
+        {optionsOpen ? (
+          <View style={styles.optionsSheet}>
+            <OptionsSheet
+              matches={matches}
+              prefix={sheetPrefix}
+              onDismiss={() => {
+                setSheetOpen(false);
+                setFocused(false);
+                setDraft('');
+              }}
+              onSelect={(term) => ask(term, sheetIntent, `${sheetPrefix} ${term}`)}
+            />
           </View>
         ) : null}
 
@@ -240,6 +279,7 @@ export default function DropAIScreen() {
             onSend={() => ask(draft)}
             onVoice={() => {
               setFocused(false);
+              setSheetOpen(false);
               setVoiceOpen(true);
             }}
             onBasket={() => flash(`Basket · ${basketCount} items`)}
@@ -316,7 +356,7 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 18,
   },
-  typeahead: {
+  optionsSheet: {
     position: 'absolute',
     top: 118,
     left: 0,

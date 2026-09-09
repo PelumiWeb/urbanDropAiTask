@@ -1,5 +1,12 @@
 import { useEffect } from 'react';
-import { StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useReducedMotion,
@@ -87,12 +94,17 @@ export function Composer({
   );
 }
 
-export function TypeaheadSheet({
+/** Options sheet. Opened by a mode chip with the full term list, or by typing (filtered). */
+export function OptionsSheet({
   matches,
+  prefix,
   onSelect,
+  onDismiss,
 }: {
   matches: string[];
+  prefix: string;
   onSelect: (term: string) => void;
+  onDismiss: () => void;
 }) {
   const { height } = useWindowDimensions();
   const reduced = useReducedMotion();
@@ -108,21 +120,28 @@ export function TypeaheadSheet({
 
   return (
     <Animated.View style={[styles.sheet, slide]}>
-      <View style={styles.handleWrap}>
+      <Tap
+        scale={1}
+        style={styles.handleWrap}
+        accessibilityRole="button"
+        accessibilityLabel="Dismiss options"
+        onPress={onDismiss}>
         <View style={styles.handle} />
-      </View>
-      {matches.map((term) => (
-        <Tap
-          key={term}
-          scale={1}
-          style={styles.suggestion}
-          accessibilityRole="button"
-          onPress={() => onSelect(term)}>
-          <Text style={styles.suggestionPrefix}>
-            Looking for… <Text style={styles.suggestionTerm}>{term}</Text>
-          </Text>
-        </Tap>
-      ))}
+      </Tap>
+      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        {matches.map((term) => (
+          <Tap
+            key={term}
+            scale={1}
+            style={styles.suggestion}
+            accessibilityRole="button"
+            onPress={() => onSelect(term)}>
+            <Text style={styles.suggestionPrefix}>
+              {prefix} <Text style={styles.suggestionTerm}>{term}</Text>
+            </Text>
+          </Tap>
+        ))}
+      </ScrollView>
     </Animated.View>
   );
 }

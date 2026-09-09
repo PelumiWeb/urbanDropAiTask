@@ -52,25 +52,35 @@ export const assistant = { name: 'Drop AI' };
 
 export const greeting = (name: string) => `Hungry, ${name}? Let’s sort it.`;
 
-export const starterPrompts: { id: string; label: string; intent: Intent }[] = [
-  { id: 'p1', label: 'Ingredients for egusi soup', intent: 'recipe' },
-  { id: 'p2', label: 'Deals near me', intent: 'deals' },
-  { id: 'p3', label: 'Reorder my last shop', intent: 'orders' },
-  { id: 'p4', label: 'Jollof rice under £15', intent: 'stores' },
-  { id: 'p5', label: 'What’s open now?', intent: 'stores' },
-  { id: 'p6', label: 'Cheapest palm oil', intent: 'stores' },
+/* The four entry modes. 'sheet' modes open the options sheet;
+   'intent' modes answer straight away. */
+export type StarterPrompt = {
+  id: string;
+  label: string;
+  mode: 'sheet' | 'intent';
+  intent: Intent;
+};
+
+export const starterPrompts: StarterPrompt[] = [
+  { id: 'p1', label: 'Looking for…', mode: 'sheet', intent: 'stores' },
+  { id: 'p2', label: 'Craving…', mode: 'sheet', intent: 'recipe' },
+  { id: 'p3', label: 'Deals', mode: 'intent', intent: 'deals' },
+  { id: 'p4', label: 'From my previous orders…', mode: 'intent', intent: 'orders' },
 ];
 
-/* Typeahead shown while the composer has focus + text */
+/* Options listed in the sheet after a 'sheet' chip is tapped.
+   Also filtered as typeahead when the shopper types instead. */
 export const querySuggestions = [
-  'egusi soup',
-  'egusi seeds',
+  'egusi',
+  'jollof rice',
   'palm oil',
-  'plantain',
-  'jollof rice kit',
-  'goat meat',
+  'honey beans',
   'stockfish',
-  'ogbono',
+  'ground melon seeds',
+  'plantain',
+  'scotch bonnet peppers',
+  'fufu',
+  'african spices',
 ];
 
 /* intent: 'recipe' — text answer + suggested basket + follow-ups */
